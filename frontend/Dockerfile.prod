@@ -1,0 +1,33 @@
+﻿# frontend/Dockerfile.prod
+# Этап 1: Сборка
+FROM node:18-alpine AS builder
+WORKDIR /app
+
+# Копирование зависимостей
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Копирование исходного кода
+COPY . .
+
+# Сборка проекта
+RUN npm run build
+
+# Этап 2: Production nginx
+FROM nginx:alpine
+
+# Копирование nginx конфигурации
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Копирование собранного приложения
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Настройка прав
+RUN chown -R nginx:nginx /usr/share/nginx/html
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
